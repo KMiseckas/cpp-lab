@@ -19,6 +19,9 @@ public:
         const auto head{m_head.load(std::memory_order_relaxed)};
         const auto nextHead{(head + 1) % Capacity};
 
+        // Acquire the consumer's published tail. If this load observes the release-store
+        // from pop(), the consumer has finished reading the corresponding buffer slot
+        // before this producer can reuse it.
         if(nextHead == m_tail.load(std::memory_order_acquire))
         {
             return false;
@@ -34,6 +37,9 @@ public:
         const auto head{m_head.load(std::memory_order_relaxed)};
         const auto nextHead{(head + 1) % Capacity};
 
+        // Acquire the consumer's published tail. If this load observes the release-store
+        // from pop(), the consumer has finished reading the corresponding buffer slot
+        // before this producer can reuse it.
         if(nextHead == m_tail.load(std::memory_order_acquire))
         {
             return false;
@@ -47,6 +53,9 @@ public:
     bool pop(T& value)
     {
         const auto tail = m_tail.load(std::memory_order_relaxed);
+
+        // Acquire the producer's published head. If this load observes the release-store
+        // from push(), the write to m_buffer[tail] is visible before we read that slot.
         const auto head = m_head.load(std::memory_order_acquire);
 
         if(head == tail)
