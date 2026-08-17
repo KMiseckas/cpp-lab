@@ -16,56 +16,65 @@ public:
 
     bool push(const T& value)
     {
-        if(isFull())
+        const auto head{m_head.load(std::memory_order_relaxed)};
+        const auto nextHead{(head + 1) % Capacity};
+
+        if(nextHead == m_tail.load(std::memory_order_acquire))
         {
             return false;
         }
 
-        m_buffer[m_head] = value;
-        m_head.store((m_head + 1) % Capacity, std::memory_order_release);
+        m_buffer[head] = value;
+        m_head.store(nextHead, std::memory_order_release);
         return true;
     }
 
     bool push(T&& value)
     {
-        if(isFull())
+        const auto head{m_head.load(std::memory_order_relaxed)};
+        const auto nextHead{(head + 1) % Capacity};
+
+        if(nextHead == m_tail.load(std::memory_order_acquire))
         {
             return false;
         }
 
-        m_buffer[m_head] = std::move(value);
-        m_head.store((m_head + 1) % Capacity, std::memory_order_release);
+        m_buffer[head] = std::move(value);
+        m_head.store(nextHead, std::memory_order_release);
         return true;
     }
 
     bool pop(T& value)
     {
-        if(isEmpty())
+        const auto tail = m_tail.load(std::memory_order_relaxed);
+        const auto head = m_head.load(std::memory_order_acquire);
+
+        if(head == tail)
         {
             return false;
         }
 
         if constexpr (std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
         {
-            value = std::move(m_buffer[m_tail]);
+            value = std::move(m_buffer[tail]);
         }
         else
         {
-            value = m_buffer[m_tail];
+            value = m_buffer[tail];
         }
 
-        m_tail.store((m_tail + 1) % Capacity, std::memory_order_release);
+        m_tail.store((tail + 1) % Capacity, std::memory_order_release);
         return true;
     }
 
     bool isEmpty() const noexcept
     {
-        return m_head.load(std::memory_order_acquire) == m_tail.load();
+        return m_head.load(std::memory_order_relaxed) == m_tail.load(std::memory_order_relaxed);
     }
 
     bool isFull() const noexcept
     {
-        return (m_head + 1) % Capacity == m_tail.load(std::memory_order_acquire); // 1 empty slot in buffer to allow `full` state to be calculated.
+        return (m_head.load(std::memory_order_relaxed) + 1) % Capacity == m_tail.load(std::memory_order_relaxed); // 1 empty slot in buffer to allow `full` state to be calculated.
     }
 
     /**
@@ -75,7 +84,7 @@ public:
      */
     std::size_t getCount() const noexcept
     {
-        return (Capacity + m_head - m_tail) % Capacity;
+        return (Capacity + m_head.load(std::memory_order_relaxed) - m_tail.load(std::memory_order_relaxed)) % Capacity;
     }
 
 private:
