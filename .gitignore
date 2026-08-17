@@ -1,0 +1,30 @@
+# CMake build trees
+/build/
+/cmake-build-*/
+
+# CMake-generated files
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+Testing/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# IDE and Visual Studio files
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.VC.db
+*.VC.opendb
+
+# Compiled binaries and debug symbols
+*.exe
+*.dll
+*.lib
+*.pdb
+*.obj
+*.ipdb
+*.iobj

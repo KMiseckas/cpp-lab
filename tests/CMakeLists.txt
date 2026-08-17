@@ -2,7 +2,8 @@ include(FetchContent)
 
 FetchContent_Declare(
     googletest
-    URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.15.2
 )
 
 # Prevent GoogleTest from overriding project-wide compiler settings on Windows.
