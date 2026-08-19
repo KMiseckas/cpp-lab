@@ -5,6 +5,13 @@
 #include <type_traits>
 #include <atomic>
 
+/**
+ * SPSC Ring buffer.
+ * - Atomic operations
+ * - Memory ordering with atomics
+ * - Compile time capacity
+ * - Uses 1 empty slot to be able to calculate if `full`
+ */
 template<typename T, std::size_t Capacity>
 class SPSCRingBuffer
 {
