@@ -6,6 +6,13 @@
 #include <mutex>
 #include <condition_variable>
 
+/**
+ * Bounded MPMC blocking queue.
+ * - Mutexes
+ * - Condition Variables (Block push on full, block pop on empty)
+ * - Compile time capacity
+ * - RAII locks
+ */
 template<typename T, std::size_t Capacity>
 class BlockingQueue
 {
@@ -15,11 +22,27 @@ public:
     BlockingQueue() = default;
     ~BlockingQueue() = default;
 
-    void push(const T& value)
+    void close()
+    {
+        {
+            std::scoped_lock sl(m_mutex);
+            m_shuttingDown = true;
+        }
+
+        m_ccv.notify_all();
+        m_pcv.notify_all();
+    }
+
+    bool push(const T& value)
     {
         {
             std::unique_lock sl(m_mutex);
-            m_pcv.wait(sl, [&]() { return m_size < Capacity; });
+            m_pcv.wait(sl, [&]() { return m_shuttingDown || m_size < Capacity; });
+
+            if(m_shuttingDown)
+            {
+                return false;
+            }
 
             m_queue[m_head] = value;
             m_head = (m_head + 1) % Capacity;
@@ -27,13 +50,19 @@ public:
         }
 
         m_ccv.notify_one();
+        return true;
     }
 
-    void push(T&& value)
+    bool push(T&& value)
     {
         {
             std::unique_lock sl(m_mutex);
-            m_pcv.wait(sl, [&]() { return m_size < Capacity; });
+            m_pcv.wait(sl, [&]() { return m_shuttingDown || m_size < Capacity; });
+
+            if(m_shuttingDown)
+            {
+                return false;
+            }
 
             m_queue[m_head] = std::move(value);
             m_head = (m_head + 1) % Capacity;
@@ -41,13 +70,27 @@ public:
         }
 
         m_ccv.notify_one();
+        return true;
     }
 
-    void pop(T& outVal)
+    template<typename... Args>
+    bool emplace(Args&&...args)
+    {
+        // not really good emplacement example. Would need to write buffer as
+        // something like std::optional<T> m_buffer[Capacity] for real emplacement.
+        return push(T(std::forward<Args>(args)...));
+    }
+
+    bool pop(T& outVal)
     {
         {
             std::unique_lock uniqueLock(m_mutex);
-            m_ccv.wait(uniqueLock, [&]() { return m_size != 0; });
+            m_ccv.wait(uniqueLock, [&]() { return m_shuttingDown || m_size != 0; });
+
+            if(m_size == 0)
+            {
+                return false;
+            }
 
             outVal = std::move(m_queue[m_tail]);
             m_tail = (m_tail + 1) % Capacity;
@@ -55,6 +98,7 @@ public:
         }
 
         m_pcv.notify_one();
+        return true;
     }
 
     std::size_t getSize() noexcept
@@ -86,6 +130,8 @@ private:
     std::size_t m_head{0};
     std::size_t m_tail{0};
     std::size_t m_size{0};
+
+    bool m_shuttingDown{false};
 
     mutable std::mutex m_mutex;
     std::condition_variable m_pcv;

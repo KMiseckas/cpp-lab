@@ -7,6 +7,7 @@
 #include <future>
 #include <memory>
 #include <set>
+#include <string>
 #include <thread>
 #include <utility>
 
@@ -17,6 +18,24 @@ class BlockingQueueTest : public ::testing::Test
 protected:
     static constexpr std::size_t Capacity = 3;
     BlockingQueue<int, Capacity> queue;
+};
+
+struct EmplaceOnlyValue
+{
+    EmplaceOnlyValue() = default;
+
+    EmplaceOnlyValue(int id, std::string name)
+        : id(id), name(std::make_unique<std::string>(std::move(name)))
+    {
+    }
+
+    EmplaceOnlyValue(const EmplaceOnlyValue&) = delete;
+    EmplaceOnlyValue& operator=(const EmplaceOnlyValue&) = delete;
+    EmplaceOnlyValue(EmplaceOnlyValue&&) noexcept = default;
+    EmplaceOnlyValue& operator=(EmplaceOnlyValue&&) noexcept = default;
+
+    int id{};
+    std::unique_ptr<std::string> name;
 };
 
 TEST_F(BlockingQueueTest, StartsEmptyWithItsDeclaredCapacity)
@@ -99,6 +118,49 @@ TEST(BlockingQueueMoveTest, PushAndPopTransferMoveOnlyValues)
     EXPECT_EQ(*output, 42);
 }
 
+TEST(BlockingQueueEmplaceTest, ConstructsAndQueuesAMoveOnlyValue)
+{
+    BlockingQueue<EmplaceOnlyValue, 1> queue;
+
+    ASSERT_TRUE(queue.emplace(7, "compile"));
+
+    EmplaceOnlyValue output;
+    ASSERT_TRUE(queue.pop(output));
+    EXPECT_EQ(output.id, 7);
+    ASSERT_NE(output.name, nullptr);
+    EXPECT_EQ(*output.name, "compile");
+}
+
+TEST(BlockingQueueEmplaceTest, WaitsForCapacityThenEnqueuesTheValue)
+{
+    BlockingQueue<int, 1> queue;
+    ASSERT_TRUE(queue.emplace(1));
+
+    auto emplaceResult = std::async(std::launch::async, [&queue]
+        {
+            return queue.emplace(2);
+        });
+
+    EXPECT_EQ(emplaceResult.wait_for(50ms), std::future_status::timeout);
+
+    int value{};
+    ASSERT_TRUE(queue.pop(value));
+    EXPECT_EQ(value, 1);
+    EXPECT_TRUE(emplaceResult.get());
+
+    ASSERT_TRUE(queue.pop(value));
+    EXPECT_EQ(value, 2);
+}
+
+TEST(BlockingQueueEmplaceTest, ReturnsFalseAfterCloseWithoutAddingAValue)
+{
+    BlockingQueue<int, 1> queue;
+    queue.close();
+
+    EXPECT_FALSE(queue.emplace(42));
+    EXPECT_TRUE(queue.isEmpty());
+}
+
 TEST(BlockingQueueBlockingTest, PopWaitsUntilAnotherThreadPushesAnItem)
 {
     BlockingQueue<int, 1> queue;
@@ -135,6 +197,66 @@ TEST(BlockingQueueBlockingTest, PushWaitsUntilAnotherThreadPopsAnItem)
 
     queue.pop(value);
     EXPECT_EQ(value, 2);
+    EXPECT_TRUE(queue.isEmpty());
+}
+
+TEST(BlockingQueueCloseTest, CloseUnblocksAWaitingPop)
+{
+    BlockingQueue<int, 1> queue;
+    auto popResult = std::async(std::launch::async, [&queue]
+        {
+            int value{};
+            return queue.pop(value);
+        });
+
+    EXPECT_EQ(popResult.wait_for(50ms), std::future_status::timeout);
+
+    queue.close();
+
+    EXPECT_FALSE(popResult.get());
+    EXPECT_TRUE(queue.isEmpty());
+}
+
+TEST(BlockingQueueCloseTest, CloseAllowsRemainingItemsToBePopped)
+{
+    BlockingQueue<int, 3> queue;
+    ASSERT_TRUE(queue.push(10));
+    ASSERT_TRUE(queue.push(20));
+    queue.close();
+
+    int value{-1};
+    ASSERT_TRUE(queue.pop(value));
+    EXPECT_EQ(value, 10);
+    ASSERT_TRUE(queue.pop(value));
+    EXPECT_EQ(value, 20);
+
+    value = -1;
+    EXPECT_FALSE(queue.pop(value));
+    EXPECT_EQ(value, -1);
+    EXPECT_TRUE(queue.isEmpty());
+}
+
+TEST(BlockingQueueCloseTest, PopReturnsFalseImmediatelyWhenClosedAndEmpty)
+{
+    BlockingQueue<int, 1> queue;
+    queue.close();
+
+    int value{42};
+    EXPECT_FALSE(queue.pop(value));
+    EXPECT_EQ(value, 42);
+    EXPECT_TRUE(queue.isEmpty());
+}
+
+TEST(BlockingQueueCloseTest, CloseRejectsMultipleSubsequentPushes)
+{
+    BlockingQueue<int, 2> queue;
+    queue.close();
+
+    int value{10};
+    EXPECT_FALSE(queue.push(value));
+    EXPECT_FALSE(queue.push(20));
+    EXPECT_FALSE(queue.push(30));
+    EXPECT_EQ(queue.getSize(), 0U);
     EXPECT_TRUE(queue.isEmpty());
 }
 
