@@ -10,6 +10,8 @@ project(cpp-lab
 
 include(CTest)
 
+option(BUILD_BENCHMARKS "Build performance benchmarks" OFF)
+
 add_library(cpp_lab INTERFACE)
 
 file(GLOB_RECURSE include_files "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
@@ -30,4 +32,8 @@ target_sources(cpp_lab
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+
+if(BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()

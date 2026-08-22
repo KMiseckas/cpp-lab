@@ -29,6 +29,16 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "benchmark-release",
+      "inherits": "release",
+      "displayName": "Benchmark Release Config",
+      "description": "Optimized build with benchmarks enabled",
+      "cacheVariables": {
+        "BUILD_BENCHMARKS": "ON",
+        "BUILD_TESTING": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -40,6 +50,19 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "inheritConfigureEnvironment": true
+    },
+    {
+      "name": "benchmark-release",
+      "configurePreset": "benchmark-release",
+      "inheritConfigureEnvironment": true
+    },
+    {
+      "name": "benchmark-run",
+      "configurePreset": "benchmark-release",
+      "targets": [
+        "run_cpp_lab_benchmarks"
+      ],
       "inheritConfigureEnvironment": true
     }
   ]
