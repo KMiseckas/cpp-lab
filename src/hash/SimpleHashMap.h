@@ -5,7 +5,16 @@
 #include <cstddef>
 #include <tuple>
 
-template<typename K, typename V>
+/**
+ * Simple hash map exercise
+ * - Separate chaining strategy for holding elements: 
+ *      - Buckets hold entries (in this case tuples) of Key, Value, Hash.
+ *      - Collisions into same bucket chain the tuple entries.
+ * - Power of 2 for load factor, fast modulus, but tradeoff if hash bit distribution is weak because
+ *      it might cause more collisions.
+ * - 
+ */
+template<typename K, typename V, typename Hash = std::hash<K>>
 class SimpleHashMap
 {
 public:
@@ -20,22 +29,19 @@ public:
 
     void insert(const K& key, const V& val)
     {
-        const std::size_t hash = std::hash<Key>(){key};
-        std::size_t index = hash & m_sizeMaskModulus; // equivilant to hash % modulus but faster (10x-20x cpu cycles)
+        const std::size_t hash = Hash{}(key);
+        std::size_t index = hash & m_sizeMaskModulus; // equivilant to hash % modulus but faster (with trade offs if hash bit distribution is not good)
 
-        if (!m_buckets.empty())
+        for (auto &t : m_buckets[index])
         {
-            for (auto &t : m_buckets[index])
+            if (std::get<2>(t) == hash && std::get<0>(t) == key)
             {
-                if (std::get<2>(t) == hash && std::get<0>(t) == key)
-                {
-                    std::get<1>(t) = val;
-                    return;
-                }
+                std::get<1>(t) = val;
+                return;
             }
         }
 
-        const float lf = (m_size + 1) / m_buckets.size();
+        const float lf = static_cast<float>(m_size + 1) / static_cast<float>(m_buckets.size());
         if(lf >= k_loadFactorThreshold)
         {
             if(rehash()) //If cant rehash then live with key collisions from there onwards.
@@ -50,14 +56,14 @@ public:
         return;
     }
 
-    bool find(const K& key, V& outVal)
+    bool find(const K& key, V& outVal) const
     {
-        const std::size_t hash = std::hash<Key>(){key};
+        const std::size_t hash = Hash{}(key);
         const std::size_t index = hash & m_sizeMaskModulus;
 
         if (!m_buckets[index].empty())
         {
-            for (const auto &t = m_buckets[index])
+            for (auto& t : m_buckets[index])
             {
                 if (std::get<2>(t) == hash && std::get<0>(t) == key)
                 {
@@ -72,7 +78,7 @@ public:
 
     bool erase(const K& key)
     {
-        const std::size_t hash = std::hash<Key>(){key};
+        const std::size_t hash = Hash{}(key);
         const std::size_t index = hash & m_sizeMaskModulus;
 
         if (!m_buckets[index].empty())
@@ -82,8 +88,8 @@ public:
                 Tuple& t = m_buckets[index][i];
                 if (std::get<2>(t) == hash && std::get<0>(t) == key)
                 {
-                    std::swap(m_buckets[index][i], m_buckets[index].end() - 1);
-                    m_buckets[index].erase(m_buckets.end() - 1);
+                    m_buckets[index].erase(m_buckets[index].begin() + i);
+                    --m_size;
                     return true;
                 }
             }
@@ -92,27 +98,46 @@ public:
         return true; // If element not found, same as erased.
     }
 
+    std::size_t size() const
+    {
+        return m_size;
+    }
+
 private:
 
     bool rehash()
     {
-        if (m_size > std::numeric_limits<std::size_t>::max() / 2) 
+        if (m_buckets.size() > std::numeric_limits<std::size_t>::max() / 2) 
         {
-            // Should never hit but Log warning here with logger just incase...
+            // Should never hit but Log warning here if required.
             return false;
         }
 
-        const auto newBucketSize = m_buckets.size() << 1;
-        m_sizeMaskModulus = newBucketSize - 1;
+        const std::size_t newBucketSize = m_buckets.size() << 1;
+        const auto newMask = newBucketSize - 1;
 
-        // LOGIC TODO
+        Bucket newBuckets;
+        newBuckets.resize(newBucketSize);
+
+        for(auto& b : m_buckets)
+        {
+            for(auto& t : b)
+            {
+                const auto newIndex{std::get<2>(t) & newMask};
+                newBuckets[newIndex].push_back(std::move(t));
+            }
+        }
+
+        m_buckets = std::move(newBuckets);
+        m_sizeMaskModulus = newMask;
+        return true;
     }
 
     using Tuple = std::tuple<K, V, std::size_t>;
     using Elements = std::vector<Tuple>;
     using Bucket = std::vector<Elements>;
 
-    constexpr float k_loadFactorThreshold{0.75F};
+    static constexpr float k_loadFactorThreshold{0.75F};
 
     Bucket m_buckets;
     std::size_t m_size{0U};

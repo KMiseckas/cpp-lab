@@ -4,7 +4,7 @@
 #include <benchmark/benchmark.h>
 
 #include "ring_buffers/SPSCRingBuffer.h"
-#include "ring_buffers/SPSCRingBufferV2"
+#include "ring_buffers/SPSCRingBufferV2.h"
 
 namespace
 {
