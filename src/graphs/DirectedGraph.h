@@ -28,9 +28,9 @@ public:
 
     bool addEdge(const T& from, const T& to)
     {
-        if(!m_graph.contains(from))
+        if(!m_graph.contains(from) || !m_graph.contains(to))
         {
-            return false; // No node to form an edge from.
+            return false; // Node not in graph
         }
         
         auto& connections = m_graph[from];
@@ -81,6 +81,31 @@ public:
         }
 
         connections.erase(it);
+    }
+
+    auto begin()
+    {
+        return m_graph.begin();
+    }
+
+    auto begin() const
+    {
+        return m_graph.begin();
+    }
+
+    auto end()
+    {
+        return m_graph.end();
+    }
+
+    auto end() const
+    {
+        return m_graph.end();
+    }
+
+    bool empty() const
+    {
+        return m_graph.empty();
     }
 
 private:
