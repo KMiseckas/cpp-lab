@@ -6,7 +6,7 @@
 #include <span>
 
 /**
- * @brief Directed graph, using adjacency list as method for storing nodes/edges. 
+ * @brief Directed unweighed graph, using adjacency list as method for storing nodes/edges. 
  * Does not enforce acyclic behaviour.
  */
 template<typename T>
@@ -48,19 +48,7 @@ public:
         return m_graph.contains(node);
     }
 
-    std::span<const T> edges(const T& forNode)
-    {
-        const auto it = m_graph.find(forNode);
-
-        if(it == m_graph.end())
-        {
-            return {};
-        }
-
-        return it->second;
-    }
-
-    const std::span<const T> edges(const T& forNode) const
+    std::span<const T> edges(const T& forNode) const
     {
         const auto it = m_graph.find(forNode);
 
