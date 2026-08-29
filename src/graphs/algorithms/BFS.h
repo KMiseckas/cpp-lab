@@ -12,7 +12,7 @@ namespace bfs
     template<typename T>
     bool hasPath(const DirectedGraph<T>& graph, const T& from, const T& to)
     {
-        if(!graph.hasNode(from))
+        if(!graph.hasNode(from) || !graph.hasNode(to))
         {
             return false;
         }
@@ -57,7 +57,7 @@ namespace bfs
     template<typename T>
     std::vector<T> shortestPath(const DirectedGraph<T>& graph, const T& from, const T& to)
     {
-        if(!graph.hasNode(from))
+        if(!graph.hasNode(from) || !graph.hasNode(to))
         {
             return {};
         }
